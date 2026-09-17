@@ -898,7 +898,7 @@ namespace Roberthasson.NINA.Lumixcamera.LumixcameraDrivers {
             { "DC-S5", new CameraSpecs { Model = "DC-S5", Width = 6000, Height = 4000, PixelPitch = 5.94 } },
             { "DC-S5M2", new CameraSpecs { Model = "DC-S5M2", Width = 6000, Height = 4000, PixelPitch = 5.94 } },
             { "DC-S5M2X", new CameraSpecs { Model = "DC-S5M2X", Width = 6008, Height = 4008, PixelPitch = 5.94 } },
-            { "DC-S9", new CameraSpecs { Model = "DC-S9", Width = 8192, Height = 5464, PixelPitch = (17.3/8192)*1000} },
+            { "DC-S9", new CameraSpecs { Model = "DC-S9", Width = 6000, Height = 4000, PixelPitch = 5.94 } },      // 24 MP full frame (same sensor as S5 II)
             { "DC-BGH1", new CameraSpecs { Model = "DC-BGH1", Width = 3680, Height = 2760, PixelPitch = 4.68 } },
             { "DC-BGS1", new CameraSpecs { Model = "DC-BGS1", Width = 6000, Height = 4000, PixelPitch = 5.91 } },
             { "DC-GH6", new CameraSpecs { Model = "DC-GH6", Width = 5776 , Height = 4336, PixelPitch = 3 } },
@@ -907,7 +907,7 @@ namespace Roberthasson.NINA.Lumixcamera.LumixcameraDrivers {
             { "DC-GH5S", new CameraSpecs { Model = "DC-GH5S", Width = 3680 , Height = 2760, PixelPitch = 4.68 } },
             { "DC-GH5M2", new CameraSpecs { Model = "GH5M2", Width = 5184, Height = 3888, PixelPitch = 3.33} },
             { "DC-G9", new CameraSpecs { Model = "DC-G9", Width = 5184, Height = 3888, PixelPitch = 3.33 } },
-            { "DC-G9M2", new CameraSpecs { Model = "DC-G9M2", Width = 5184, Height = 3888, PixelPitch = 3.33 } },
+            { "DC-G9M2", new CameraSpecs { Model = "DC-G9M2", Width = 5776, Height = 4336, PixelPitch = 3 } },     // 25 MP MFT (same sensor as GH7)
             { "DefaultLumix", new CameraSpecs { Model = "DefaultLumix", Width = 6000, Height = 4000, PixelPitch = 5.9 } }
         };
 
