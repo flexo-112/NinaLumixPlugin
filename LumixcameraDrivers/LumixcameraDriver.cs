@@ -172,6 +172,7 @@ namespace Roberthasson.NINA.Lumixcamera.LumixcameraDrivers {
 
         private ushort _lastNotifiedModePos = 0xFFFF;
         private bool _warnedJpeg = false;   // warn once per connect if the camera is capturing JPEG, not RAW
+        private bool _warnedLibRaw = false; // warn once per connect if the built-in LibRaw decoder failed and we fell back
         private List<(double seconds, int raw)> _ssTable;
 
         private static bool IsManualMode(ushort modePos) =>
@@ -730,6 +731,33 @@ namespace Roberthasson.NINA.Lumixcamera.LumixcameraDrivers {
                     return DecodeJpegToBayerExposure(buffer, metaData);
                 }
 
+                // Optional: decode the RW2 in-plugin with the bundled LibRaw 0.22 (for N.I.N.A. <= 3.2, whose
+                // DCRaw/FreeImage converters don't know newer bodies — GH7, S5 II, S9 ...). OFF by default;
+                // N.I.N.A. 3.3+ has its own LibRaw. On any failure fall through to N.I.N.A.'s converter.
+                if (Properties.Settings.Default.UseBuiltInLibRaw) {
+                    bool bitScaling = _profileService.ActiveProfile.CameraSettings.BitScaling;
+                    if (LibRawDecoder.TryDecode(buffer, this.BitDepth, bitScaling, out var frame, out var librawError)) {
+                        if (frame.Pattern != SensorType.Monochrome && metaData.Camera.BayerPattern != BayerPatternEnum.None) {
+                            metaData.Camera.SensorType = frame.Pattern;
+                            metaData.Camera.BayerOffsetX = 0;
+                            metaData.Camera.BayerOffsetY = 0;
+                        }
+                        Logger.Info($"[LibRaw] decoded RW2 in-plugin: {frame.Width}x{frame.Height}, pattern={frame.Pattern}, max={frame.MaxPixelValue}, bitDepth={frame.BitDepth} (LibRaw {frame.LibRawVersion}).");
+                        return _exposureDataFactory.CreateImageArrayExposureData(
+                            input: frame.Pixels,
+                            width: frame.Width,
+                            height: frame.Height,
+                            bitDepth: frame.BitDepth,
+                            isBayered: frame.Pattern != SensorType.Monochrome,
+                            metaData: metaData);
+                    }
+                    Logger.Error($"[LibRaw] built-in decode failed, falling back to N.I.N.A.'s RAW converter: {librawError}");
+                    if (!_warnedLibRaw) {
+                        _warnedLibRaw = true;
+                        Notification.ShowWarning("Built-in LibRaw decoder failed (" + librawError + "). Falling back to N.I.N.A.'s RAW converter.");
+                    }
+                }
+
                 return _exposureDataFactory.CreateRAWExposureData(
                     converter: _profileService.ActiveProfile.CameraSettings.RawConverter,
                     rawBytes: buffer,
@@ -857,7 +885,7 @@ namespace Roberthasson.NINA.Lumixcamera.LumixcameraDrivers {
                     ret = LMX_func_api_ISO_Get_Capability(ref Iso_CapaInfo, out retError);
                     // Rebuild the cached lists from THIS connection's fresh capability data (a reconnect reuses
                     // the driver, and stale/empty caches left gain unpopulated).
-                    _gains = null; _gainsRaw = null; _ssTable = null; _exposures = null; _warnedJpeg = false;
+                    _gains = null; _gainsRaw = null; _ssTable = null; _exposures = null; _warnedJpeg = false; _warnedLibRaw = false;
 
                     // Warn (never block) about the exposure mode. Use the dedicated Get_Mode_Pos getter, not the
                     // CameraMode capability struct (whose Tether-buffer layout differs, so CurVal_mode_pos read

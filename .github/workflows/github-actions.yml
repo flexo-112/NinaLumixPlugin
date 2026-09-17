@@ -54,6 +54,9 @@ jobs:
           Copy-Item "${{ github.workspace }}\bin\Release\net8.0-windows\${{ env.PLUGIN_NAME }}.dll" "packages/${{ env.PLUGIN_NAME }}/${{ env.PLUGIN_NAME }}.dll" -Force
           Copy-Item "${{ github.workspace }}\bin\Release\net8.0-windows\${{ env.PLUGIN_NAME }}.pdb" "packages/${{ env.PLUGIN_NAME }}/${{ env.PLUGIN_NAME }}.pdb" -Force
           Copy-Item "${{ github.workspace }}\bin\Release\net8.0-windows\Library\Lmxptpif.dll" "packages/${{ env.PLUGIN_NAME }}/Lmxptpif.dll" -Force
+          Copy-Item "${{ github.workspace }}\bin\Release\net8.0-windows\Library\libraw.dll" "packages/${{ env.PLUGIN_NAME }}/libraw.dll" -Force
+          New-Item -ItemType Directory -Force "packages/${{ env.PLUGIN_NAME }}/LibRaw" | Out-Null
+          Copy-Item "${{ github.workspace }}\Library\LibRaw\*" "packages/${{ env.PLUGIN_NAME }}/LibRaw/" -Force
 
       - name: Create Plugin archives and manifests
         run: |
