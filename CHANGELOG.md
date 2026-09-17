@@ -1,5 +1,13 @@
 ﻿# LumixCamera
 
+## 1.2.1.0
+- **Colour live view.** The live-view JPEG from the camera is re-mosaiced into a synthetic RGGB
+  Bayer frame and handed to N.I.N.A. as bayered, so its normal debayer step produces a colour
+  preview instead of the previous 16-bit grayscale conversion.
+- The **Prefer JPEG** capture fallback uses the same path, so JPEG captures are also shown in colour.
+- Fixed the release workflow: package the renamed `LumixPlugin.dll` (the 1.2.0.0 build packaged the
+  old assembly name and failed).
+
 ## 1.2.0.0
 - Optional **LUMIX Tether extended mode**: when enabled in the plugin options the driver
   loads the DLL from a local install of Panasonic's free LUMIX Tether application (never

@@ -7,8 +7,8 @@ using System.Runtime.InteropServices;
 
 // [MANDATORY] The assembly versioning
 //Should be incremented for each new release build of a plugin
-[assembly: AssemblyVersion("1.2.0.0")]
-[assembly: AssemblyFileVersion("1.2.0.0")]
+[assembly: AssemblyVersion("1.2.1.0")]
+[assembly: AssemblyFileVersion("1.2.1.0")]
 
 // [MANDATORY] The name of your plugin
 [assembly: AssemblyTitle("LumixCamera")]
@@ -54,6 +54,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyMetadata("LongDescription", @"Lumix native plugin provides a USB direct method to interface with [compatible Lumix cameras](https://av.jpn.support.panasonic.com/support/global/cs/soft/tool/sdk.html).
 
 This differs from the ASCOM Driver which interfaces over wifi and http. As the ASCOM driver allows a wider set of cameras it also does not provide a liveview and is rather slow in downloading the RAW images to Nina.
+
+Live view is shown in colour: the camera's live-view JPEG is re-mosaiced into a Bayer frame and debayered by N.I.N.A. like a normal capture (the same applies to JPEG captures when *Prefer JPEG* is enabled).
 
 The plugin runs in one of two modes, selected in the plugin options:
 

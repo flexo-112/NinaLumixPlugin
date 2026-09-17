@@ -3,6 +3,8 @@ Lumix native plugin provides a USB direct method to interface with [compatible L
 
 This differs from the ASCOM Driver which interfaces over wifi and http. As the ASCOM driver allows a wider set of cameras it also does not provide a liveview and is rather slow in downloading the RAW images to Nina.
 
+Live view is shown in **colour**: the camera's live-view JPEG is re-mosaiced into a Bayer frame and debayered by N.I.N.A. like a normal capture (the same applies to JPEG captures when *Prefer JPEG* is enabled).
+
 # Two modes: Standard and Extended
 
 The plugin runs in one of two modes, selected in the plugin options:
