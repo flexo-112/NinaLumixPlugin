@@ -723,11 +723,11 @@ namespace Roberthasson.NINA.Lumixcamera.LumixcameraDrivers {
                     if (!Properties.Settings.Default.PreferJpeg && !_warnedJpeg) {
                         _warnedJpeg = true;
                         Notification.ShowWarning(NativeBinding.ExtendedMode
-                            ? "Camera captured JPEG, not RAW (shown in grayscale). Reconnect — the plugin sets RAW in extended mode."
-                            : "Camera captured JPEG, not RAW (shown in grayscale). Set the camera's image quality to RAW on the body — the plugin can't change it in standard mode.");
+                            ? "Camera captured JPEG, not RAW. Reconnect — the plugin sets RAW in extended mode."
+                            : "Camera captured JPEG, not RAW. Set the camera's image quality to RAW on the body — the plugin can't change it in standard mode.");
                     }
-                    Logger.Info($"Captured object is JPEG (PreferJpeg={Properties.Settings.Default.PreferJpeg}) — decoding to grayscale for display.");
-                    return DecodeJpegToExposure(buffer, metaData);
+                    Logger.Info($"Captured object is JPEG (PreferJpeg={Properties.Settings.Default.PreferJpeg}) — re-mosaicing to Bayer for colour display.");
+                    return DecodeJpegToBayerExposure(buffer, metaData);
                 }
 
                 return _exposureDataFactory.CreateRAWExposureData(
@@ -740,29 +740,6 @@ namespace Roberthasson.NINA.Lumixcamera.LumixcameraDrivers {
                 if (buffer != null) {
                     buffer = null;
                 }
-            }
-        }
-
-        /// <summary>Decode a JPEG buffer to a 16-bit greyscale image array exposure (same path as live view).
-        /// Used as the display fallback when NINA's RAW converter can't handle a camera's .RW2.</summary>
-        private IExposureData DecodeJpegToExposure(byte[] jpeg, ImageMetaData metaData) {
-            using (var memStream = new MemoryStream(jpeg)) {
-                memStream.Position = 0;
-                var decoder = new JpegBitmapDecoder(memStream, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad);
-                var bitmap = new FormatConvertedBitmap();
-                bitmap.BeginInit();
-                bitmap.Source = decoder.Frames[0];
-                bitmap.DestinationFormat = System.Windows.Media.PixelFormats.Gray16;
-                bitmap.EndInit();
-                ushort[] outArray = new ushort[bitmap.PixelWidth * bitmap.PixelHeight];
-                bitmap.CopyPixels(outArray, 2 * bitmap.PixelWidth, 0);
-                return _exposureDataFactory.CreateImageArrayExposureData(
-                    input: outArray,
-                    width: bitmap.PixelWidth,
-                    height: bitmap.PixelHeight,
-                    bitDepth: 16,
-                    isBayered: false,
-                    metaData: metaData);
             }
         }
 
@@ -783,31 +760,71 @@ namespace Roberthasson.NINA.Lumixcamera.LumixcameraDrivers {
                 LMX_STRUCT_LIVEVIEW_INFO_LEVEL levelBuf = new LMX_STRUCT_LIVEVIEW_INFO_LEVEL();
                 uint levelBufSize = 32;// sizeof(LMX_STRUCT_LIVEVIEW_INFO_LEVEL);
                 LMX_func_api_Get_LiveView_data(ref histgramBuf, out histgramBufSize, ref postureBuf, out postureBufSize, ref levelBuf, out levelBufSize, ref jpegDataPos[0], out returnedJpegSize, out retError);
-                using (var memStream = new MemoryStream(jpegDataPos)) {
-                    memStream.Position = 0;
 
-                    JpegBitmapDecoder decoder = new JpegBitmapDecoder(memStream, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad);
-
-                    FormatConvertedBitmap bitmap = new FormatConvertedBitmap();
-                    bitmap.BeginInit();
-                    bitmap.Source = decoder.Frames[0];
-                    bitmap.DestinationFormat = System.Windows.Media.PixelFormats.Gray16;
-                    bitmap.EndInit();
-
-                    ushort[] outArray = new ushort[bitmap.PixelWidth * bitmap.PixelHeight];
-                    bitmap.CopyPixels(outArray, 2 * bitmap.PixelWidth, 0);
-
-                    var metaData = new ImageMetaData();
-                    metaData.FromCamera(this);
-                    return _exposureDataFactory.CreateImageArrayExposureData(
-                            input: outArray,
-                            width: bitmap.PixelWidth,
-                            height: bitmap.PixelHeight,
-                            bitDepth: 16,
-                            isBayered: false,
-                            metaData: metaData);
-                }
+                var metaData = new ImageMetaData();
+                metaData.FromCamera(this);
+                // The camera's live-view JPEG is already full colour. Re-mosaic it into a synthetic
+                // single-plane Bayer (RGGB) array and hand it to NINA as isBayered so NINA's own
+                // debayer step (the same one used for real captures) produces a colour preview,
+                // instead of flattening the frame to Gray16 as before.
+                return DecodeJpegToBayerExposure(jpegDataPos, metaData);
             });
+        }
+
+        /// <summary>
+        /// Decodes a JPEG frame that the camera already rendered in full colour (live view, or the
+        /// JPEG-capture fallback) and re-mosaics it into a synthetic single-plane Bayer array matching
+        /// this driver's declared SensorType (RGGB, offset 0,0), so it flows through NINA's normal
+        /// debayer pipeline instead of being collapsed to grayscale. Colour resolution is down-sampled
+        /// to sensor-pattern resolution in the process (one channel kept per pixel), which is irrelevant
+        /// for live-view framing/focus use but means this is NOT a substitute for real RAW capture data.
+        /// </summary>
+        private IExposureData DecodeJpegToBayerExposure(byte[] jpeg, ImageMetaData metaData) {
+            using (var memStream = new MemoryStream(jpeg)) {
+                memStream.Position = 0;
+
+                JpegBitmapDecoder decoder = new JpegBitmapDecoder(memStream, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad);
+
+                FormatConvertedBitmap bitmap = new FormatConvertedBitmap();
+                bitmap.BeginInit();
+                bitmap.Source = decoder.Frames[0];
+                bitmap.DestinationFormat = System.Windows.Media.PixelFormats.Rgb48; // keep full colour, 16 bit/channel
+                bitmap.EndInit();
+
+                int width = bitmap.PixelWidth;
+                int height = bitmap.PixelHeight;
+                ushort[] rgb = new ushort[width * height * 3];
+                bitmap.CopyPixels(rgb, width * 3 * 2, 0);
+
+                ushort[] bayer = new ushort[width * height];
+                // RGGB: (evenRow,evenCol)=R  (evenRow,oddCol)=G  (oddRow,evenCol)=G  (oddRow,oddCol)=B
+                for (int y = 0; y < height; y++) {
+                    bool evenRow = (y % 2 == 0);
+                    int rowBase = y * width;
+                    int rgbRowBase = rowBase * 3;
+                    for (int x = 0; x < width; x++) {
+                        bool evenCol = (x % 2 == 0);
+                        int rgbIdx = rgbRowBase + x * 3;
+                        ushort value;
+                        if (evenRow && evenCol) {
+                            value = rgb[rgbIdx];       // R
+                        } else if (!evenRow && !evenCol) {
+                            value = rgb[rgbIdx + 2];   // B
+                        } else {
+                            value = rgb[rgbIdx + 1];   // G
+                        }
+                        bayer[rowBase + x] = value;
+                    }
+                }
+
+                return _exposureDataFactory.CreateImageArrayExposureData(
+                        input: bayer,
+                        width: width,
+                        height: height,
+                        bitDepth: 16,
+                        isBayered: true,
+                        metaData: metaData);
+            }
         }
 
         public void StopLiveView() {
